@@ -1,0 +1,45 @@
+name: Auto Control Railway Service
+
+on:
+  schedule:
+    - cron: '0 18 * * *'  # 2:00 北京时间 = 18:00 UTC
+    - cron: '0 23 * * *'  # 7:00 北京时间 = 23:00 UTC
+
+jobs:
+  control_service:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Railway CLI
+        run: |
+          npm install -g railway
+
+      - name: Login to Railway
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+        run: |
+          railway login --token $RAILWAY_API_TOKEN
+
+      - name: Determine time and action
+        id: action
+        run: |
+          HOUR=$(date +'%H')
+          echo "Current UTC Hour: $HOUR"
+          if [ "$HOUR" == "18" ]; then
+            echo "action=down" >> $GITHUB_OUTPUT
+          elif [ "$HOUR" == "23" ]; then
+            echo "action=up" >> $GITHUB_OUTPUT
+          else
+            echo "No action to take"
+            exit 0
+          fi
+
+      - name: Control Railway Service (Down)
+        if: steps.action.outputs.action == 'down'
+        run: |
+          railway down
+          
+      - name: Control Railway Service (Up)
+        if: steps.action.outputs.action == 'up'
+        run: |
+          railway up
