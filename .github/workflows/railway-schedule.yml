@@ -2,10 +2,9 @@ name: Auto Control Railway Service
 
 on:
   schedule:
-    # 每天的 2:00 (北京时间) 关闭服务 (北京时间 -8 = UTC时间 18:00)
-    - cron: '0 18 * * *'
-    # 每天的 7:00 (北京时间) 启动服务 (北京时间 -8 = UTC时间 23:00)
-    - cron: '0 23 * * *'
+    - cron: '0 0 * * *'   # 每天早上 8:00 (北京时间) 启动服务 (UTC 0:00)
+    - cron: '0 16 * * *'  # 每天晚上 24:00 (北京时间) 关闭服务 (UTC 16:00)
+  workflow_dispatch: # 手动触发
 
 jobs:
   control_service:
@@ -15,7 +14,7 @@ jobs:
       # 1. 安装 Railway CLI
       - name: Install Railway CLI
         run: |
-          echo "Installing Railway CLI..."
+          echo "🔧 Installing Railway CLI..."
           npm install -g railway
 
       # 2. 登录 Railway
@@ -43,29 +42,29 @@ jobs:
           HOUR=$(date -u +'%H')
           echo "Current UTC Hour: $HOUR"
           
-          # 18:00 UTC = 北京时间 2:00
-          # 23:00 UTC = 北京时间 7:00
-          if [ "$HOUR" == "18" ]; then
-            echo "🔻 Closing Railway Service (2:00 Beijing Time)"
-            echo "action=down" >> $GITHUB_OUTPUT
-          elif [ "$HOUR" == "23" ]; then
-            echo "🔺 Starting Railway Service (7:00 Beijing Time)"
+          # 0:00 UTC = 北京时间 8:00
+          # 16:00 UTC = 北京时间 24:00
+          if [ "$HOUR" == "00" ]; then
+            echo "🔺 Starting Railway Service (8:00 Beijing Time)"
             echo "action=up" >> $GITHUB_OUTPUT
+          elif [ "$HOUR" == "16" ]; then
+            echo "🔻 Closing Railway Service (24:00 Beijing Time)"
+            echo "action=down" >> $GITHUB_OUTPUT
           else
             echo "⚠️ No action to take. Current UTC Hour is $HOUR"
             exit 0
           fi
 
-      # 5. 停止 Railway 服务 (如果 action = down)
-      - name: Stop Railway Service
-        if: steps.action.outputs.action == 'down'
-        run: |
-          echo "🛑 Stopping Railway Service..."
-          railway down || echo "⚠️ Failed to stop service, but continuing anyway."
-        
-      # 6. 启动 Railway 服务 (如果 action = up)
+      # 5. 启动 Railway 服务 (如果 action = up)
       - name: Start Railway Service
         if: steps.action.outputs.action == 'up'
         run: |
           echo "🚀 Starting Railway Service..."
           railway up || echo "⚠️ Failed to start service, but continuing anyway."
+
+      # 6. 停止 Railway 服务 (如果 action = down)
+      - name: Stop Railway Service
+        if: steps.action.outputs.action == 'down'
+        run: |
+          echo "🛑 Stopping Railway Service..."
+          railway down || echo "⚠️ Failed to stop service, but continuing anyway."
