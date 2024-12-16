@@ -2,44 +2,70 @@ name: Auto Control Railway Service
 
 on:
   schedule:
-    - cron: '0 18 * * *'  # 2:00 北京时间 = 18:00 UTC
-    - cron: '0 23 * * *'  # 7:00 北京时间 = 23:00 UTC
+    # 每天的 2:00 (北京时间) 关闭服务 (北京时间 -8 = UTC时间 18:00)
+    - cron: '0 18 * * *'
+    # 每天的 7:00 (北京时间) 启动服务 (北京时间 -8 = UTC时间 23:00)
+    - cron: '0 23 * * *'
 
 jobs:
   control_service:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. 安装 Railway CLI
       - name: Install Railway CLI
         run: |
+          echo "Installing Railway CLI..."
           npm install -g railway
 
+      # 2. 登录 Railway
       - name: Login to Railway
         env:
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
         run: |
+          if [ -z "${{ secrets.RAILWAY_API_TOKEN }}" ]; then
+            echo "🚨 RAILWAY_API_TOKEN is not set. Please check your GitHub Secrets."
+            exit 1
+          fi
+          echo "🔑 Logging into Railway using API token..."
           railway login --token $RAILWAY_API_TOKEN
 
-      - name: Determine time and action
+      # 3. 确认当前的 UTC 时间（调试用）
+      - name: Print current UTC time
+        run: |
+          echo "📅 Current UTC time is: $(date -u '+%Y-%m-%d %H:%M:%S')"
+          echo "🕒 Current hour (UTC): $(date -u '+%H')"
+
+      # 4. 判断是否应该关闭或启动服务
+      - name: Determine action (up or down)
         id: action
         run: |
-          HOUR=$(date +'%H')
+          HOUR=$(date -u +'%H')
           echo "Current UTC Hour: $HOUR"
+          
+          # 18:00 UTC = 北京时间 2:00
+          # 23:00 UTC = 北京时间 7:00
           if [ "$HOUR" == "18" ]; then
+            echo "🔻 Closing Railway Service (2:00 Beijing Time)"
             echo "action=down" >> $GITHUB_OUTPUT
           elif [ "$HOUR" == "23" ]; then
+            echo "🔺 Starting Railway Service (7:00 Beijing Time)"
             echo "action=up" >> $GITHUB_OUTPUT
           else
-            echo "No action to take"
+            echo "⚠️ No action to take. Current UTC Hour is $HOUR"
             exit 0
           fi
 
-      - name: Control Railway Service (Down)
+      # 5. 停止 Railway 服务 (如果 action = down)
+      - name: Stop Railway Service
         if: steps.action.outputs.action == 'down'
         run: |
-          railway down
-          
-      - name: Control Railway Service (Up)
+          echo "🛑 Stopping Railway Service..."
+          railway down || echo "⚠️ Failed to stop service, but continuing anyway."
+        
+      # 6. 启动 Railway 服务 (如果 action = up)
+      - name: Start Railway Service
         if: steps.action.outputs.action == 'up'
         run: |
-          railway up
+          echo "🚀 Starting Railway Service..."
+          railway up || echo "⚠️ Failed to start service, but continuing anyway."
