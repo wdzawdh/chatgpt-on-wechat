@@ -9,6 +9,7 @@ on:
 jobs:
   control_service:
     runs-on: ubuntu-latest
+    environment: production  # 指定环境名称
 
     steps:
       # 1. 安装 Railway CLI
